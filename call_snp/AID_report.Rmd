@@ -1,0 +1,359 @@
+---
+title: "AID report"
+author:
+- name: Ming Wang
+  affiliation: IBP
+  email: wangming@ibp.ac.cn
+date: "`r Sys.Date()`"
+output:
+  BiocStyle::html_document
+abstract: |
+  AID editing report
+vignette: |
+  %\VignetteIndexEntry{Vignette Title}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+params:
+  prj_dir: ""
+---
+
+```{r global options, echo=FALSE}
+library(knitr)
+
+knitr::opts_chunk$set(fig.width = 12, 
+                      fig.height = 8, 
+                      fig.path = 'Figs/',
+                      echo = FALSE,
+                      eval = TRUE,
+                      cache = FALSE,
+                      prompt = FALSE,
+                      tidy = FALSE,
+                      comment = NA,
+                      message = FALSE,
+                      warning = FALSE,
+                      rownames.print = FALSE)
+options(width=150)
+```
+
+```{r}
+library(readr)
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(hiseqr)
+
+prj_dir <- params$prj_dir
+```
+
+# Summary
+
+## Methods and Materials
+
+### Library structure
+
+```
+5'-{P5}-{CT}-{insert DNA}-------------------3'        
+3'-----------{insert DNA}-{AG}-{index}-{P7}-5'        
+
+3' adapter: AGATCGGAAGAGCAC (TruSeq)
+
+# Primer list
+P5-EGFP-1F: 5'-TCCGATCT GA ACAATCAACTCCAAGCTTGAA-3'
+P7-EGFP-1R: 5'-TCCGATCT CT GTCGTGCTGCTTCATGTGGTCG-3'
+P5-EGFP-2F: 5'-TCCGATCT GA CTGACCTACGGCGTGCAGTGCT-3'
+P7-EGFP-2R: 5'-TCCGATCT CT GTCGGCCATGATATAGACGTTGTG-3'
+
+# # crRNA
+# crRNA1: 5'-CGCCCTCGCCGGACACGCTGAA-3' (172-193)    
+# crRNA2: 5'-GCGGCTGAAGCACTGCACGCCG-3' (291-312)    
+# crRNA3: 5'-GTCGCCCTCGAACTTCACCTCG-3' (423-444)
+
+# sgRNA    
+ZF sgRNA1: 5'-GGGCGAGGAGCTGTTCACCG-3' (102-121)
+T1 sgRNA:  5'-GGAGCGCACCATCTTCTTCA-3' (375-394)
+T2 sgRNA:  5'-GTGAACCGCATCGAGCTGAA-3' (451-470)
+
+```
+
+```{r}
+# prj_dir  <- "/data/yulab/wangming/work/yu_2020/projects/20200430_ws_aid/"
+gfp <- c(91:558)
+f1  <- c(67:339)
+f2  <- c(283:558)
+
+crRNA <- data.frame(start = c(102, 375, 451), 
+                    end   = c(121, 394, 470),
+                    name  = c("crRNA1", "crRNA2", "crRNA3"))
+
+```
+
+
+### Processing
+
++ 1. qc, remove 3' adapters and low quality bases.     
++ 2. remove duplicates, reads with identical sequences were collapsed.
++ 3. map, map reads to GFP fragments.    
++ 4. edits, extract edit bases, edit rate.  
+
+### Alignment
+
+High throughput sequencing reads were mapped to the two PCR fragments: (P1, P2), using BWA (v0.7.17-r1188). The base content in each position were calculated using custome script.
+
+### Reference data
+
+`eGFP`: `/home/wangming/data/genome/GFP/bigZips/eGFP.fa`
+
+
+```{r func}
+getName <- function(x) {
+  rm  <- "Base-editing-CAS13d-AID-|1-EGFP-|_FKDL\\d+|_1|_2|-1a|.snp.bed|.fq.gz|.fastq.gz"
+  gsub(rm, "", basename(x))
+}
+
+## parse the "seqkit stat" output
+seqkitStat <- function(x, group_name = "raw") {
+  readr::read_delim(x, " ", trim_ws = TRUE, col_types = readr::cols()) %>%
+    dplyr::select(file, num_seqs) %>%
+    dplyr::mutate(file     = hiseqr::fqName(file),
+                  num_seqs = num_seqs,
+                  group    = group_name) %>%
+    dplyr::rename(count    = num_seqs) %>%
+    group_by(file, group) %>%
+    summarise(count = sum(count))
+}
+
+
+## parse the "flagstat" output of samtools
+flagstat <- function(f) {
+  x <- readLines(f)
+  # mapped
+  d <- stringr::str_detect(x, "mapped \\(")
+  m <- stringr::str_split(x[d], " ", simplify = TRUE)[1,1]
+  m <- as.numeric(m)
+  # sup
+  d2 <- stringr::str_detect(x, "\\d+.*supplementary")
+  m2 <- stringr::str_split(x[d2], " ", simplify = TRUE)[1,1]
+  m2 <- as.numeric(m2)
+  
+  df <- data.frame(
+    file  = hiseqr::fqName(dirname(f)),
+    count = m - m2,
+    group = "mapped",
+    stringsAsFactors = FALSE
+  )
+  
+  return(df)
+}
+
+##
+f2p <- function(x) {
+  fname <- hiseqr::fqName(x)
+  fname <- gsub("_1|.fa.gz|.snp.bed", "", fname)
+  ## fragment region
+  if(grepl("_P1", fname)) {
+    region <- f1
+  } else {
+    region <- f2
+  }
+  
+  ## parse data
+  df <- readr::read_delim(x, "\t", col_names = TRUE, col_types = readr::cols()) %>%
+    dplyr::filter(pos %in% region) %>%
+    dplyr::select(pos, refbase, total, A, C, G, T) %>%
+    dplyr::mutate(aid = ifelse(refbase == "C", T / total*100, 
+                               ifelse(refbase == "G", A / total*100, 0))) %>%
+    dplyr::mutate(group = fname)
+}
+
+
+plotA <- function(df) {
+  df %>%  
+    ggplot(aes(pos, total)) +
+    geom_vline(xintercept = c(crRNA$start, crRNA$end), 
+               color = "blue", size = 0.3, linetype = 2) +
+    geom_bar(stat = "identity", fill = "orange", 
+             color = "grey30", size = 0.2) +
+    geom_text(aes(x = pos, y = -0.5, label = refbase), 
+              size = 1.5, color = "black") + 
+    xlab("Coordinates") + ylab("Number of reads") +
+    facet_grid(group~.) +
+    theme_bw() +
+    theme(
+      panel.grid.minor = element_blank(),
+      panel.grid.major = element_line(linetype = 3, size = 0.2, color = "grey60")
+    )
+}
+
+
+plotB <- function(df) {
+  df %>%
+    dplyr::filter(aid > 0) %>%
+    ggplot(aes(pos, aid, fill = refbase)) +
+    geom_vline(xintercept = c(crRNA$start, crRNA$end), 
+               color = "blue", size = 0.3, linetype = 2) +
+    geom_hline(yintercept = 1, linetype = 2, color = "blue", size = 0.2) +
+    geom_bar(stat = "identity", size = 0.2) +
+    geom_text(aes(x = pos, y = -0.5, label = refbase), 
+              size = 1.5, color = "black") + 
+    scale_fill_manual(values = c("red3", "blue3"), 
+                      labels = c("C -> T", "G -> A")) +
+    guides(fill = guide_legend(title = "Base Editing: ")) +
+    xlab("Coordinates") + ylab("Mutation rate (%)") +
+    facet_grid(group~.) +
+    theme_bw() +
+    theme(
+      panel.grid.minor = element_blank(),
+      panel.grid.major = element_line(linetype = 3, size = 0.2, color = "grey60"),
+      legend.position = "top"
+    )
+}
+
+```
+
+
+## Results - no-PCR-dup
+
+More than 90% PCR duplication observed in all samples. Duplicates were removed before mapping to reference sequence.
+
+**Samples**
+
+```{r}
+data_dir <- file.path(prj_dir, "data/clean_data/")
+fq_list  <- list.files(data_dir, "*1.fq.gz", all.files = TRUE, full.names = TRUE)
+fq_names <- hiseqr::fqName(fq_list)
+print(fq_names)
+```
+
+
+### 1. Number of reads (duplicates removed)
+
+```{r reads2, echo = FALSE}
+raw_stat      <- file.path(prj_dir, "data", "raw_data", "fq.stat")
+clean_stat    <- file.path(prj_dir, "data", "clean_data", "fq.stat")
+collapse_stat <- file.path(prj_dir, "data", "collapsed", "fq.stat")
+
+## raw
+df1 <- seqkitStat(raw_stat, "raw")
+
+## clean
+df2 <- seqkitStat(clean_stat, "clean")
+
+## collapse
+df3 <- seqkitStat(collapse_stat, "collapse")
+  
+## map
+fs   <- list.files(file.path(prj_dir, "results", "collapsed"), "flagstat.out", T, T, T)
+df4  <- dplyr::bind_rows(lapply(fs, flagstat))
+
+## sum
+df5 <- bind_rows(df1, df2, df3, df4) %>%
+  tidyr::spread(key = group, value = count) %>%
+  dplyr::mutate(PE = raw / 2,
+                qc = raw - clean,
+                dup = clean - collapse,
+                nodup = collapse,
+                map = mapped,
+                map_pct = round(map / nodup * 100, 1)) %>%
+  dplyr::select(file, PE, raw, qc, nodup, map, map_pct) %>%
+  dplyr::ungroup() 
+
+DT::datatable(df5, rownames = FALSE, filter = "top", 
+              options = list(pageLength = 10, scrollX = TRUE))
+```
+
+**PE**, the number of read pairs (Paired-end reads)  The number of reads = `read1` + `read2`;        
+**nodup**, the number of reads without PCR duplicates
+
+
+### 2. Base Editing (duplicates removed)
+
+1. Screen for base editing in GFP region
+
++ The read coverage on GFP regions:
+
+```{r p3, fig.height = 14}
+result_dir <- file.path(prj_dir, "results", "collapsed")
+f_list     <- list.files(result_dir, "*.bed", T, T, T)
+df6        <- bind_rows(lapply(f_list, f2p))
+
+p1 <- plotA(df6)
+print(p1)
+```
+
+The vertical blue dashed lines indicate the position of crRNAs
+
++ The base editing rate:
+
+`C -> T` or `G -> A`
+
+```{r p4, echo = FALSE, fig.height = 14}
+p2 <- plotB(df6)
+print(p2)
+```
+
+The horizontal blue dashed lines indicate 1% mutation rate.
+
+The vertical blue dashed lines indicate the position of crRNAs. 
+
+
+## Results - raw-reads
+
+### 1. Reads mapping (All reads)
+
+```{r, echo = FALSE}
+## map
+fs   <- list.files(file.path(prj_dir, "results", "clean_data"), "flagstat.out", T, T, T)
+df7  <- dplyr::bind_rows(lapply(fs, flagstat))
+
+## sum
+df8 <- bind_rows(df1, df2, df7) %>%
+  tidyr::spread(key = group, value = count) %>%
+  dplyr::mutate(PE = raw / 2,
+         qc = raw - clean,
+         map = mapped,
+         map_pct = round(map / clean * 100, 1)) %>%
+  dplyr::select(file, PE, raw, qc, clean, map, map_pct)
+
+DT::datatable(df8, rownames = FALSE, filter = "top", 
+              options = list(pageLength = 10, scrollX = TRUE))
+```
+
+**PE**, the number of paired-end read pairs. The number of reads = `read1` + `read2`;    
+**qc**, indicate the number of reads removed after quality control.    
+
+
+### 2. Base Editing (All reads)
+
+Screen for base editing in GFP region; including `C to T` and `G to A` conversion.
+
++ The read coverage on GFP regions:
+
+```{r p1, echo = FALSE,fig.height = 14}
+res_dir <- file.path(prj_dir, "results", "clean_data")
+f_list <- list.files(res_dir, "*.bed", T, T, T)
+df9    <- bind_rows(lapply(f_list, f2p))
+
+p1 <- plotA(df9)
+print(p1)
+```
+
+The vertical blue dashed lines indicate the position of crRNAs
+
++ The base editing rate:
+
+`C -> T` or `G -> A`
+
+```{r p2, echo = FALSE, fig.height = 14}
+p2 <- plotB(df9)
+print(p2)
+```
+
+The horizontal blue dashed lines indicate 1% mutation rate.
+
+The vertical blue dashed lines indicate the position of crRNAs. 
+
+
+
+## Reference
+
+

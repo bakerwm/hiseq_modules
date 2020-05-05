@@ -1,0 +1,452 @@
+---
+title: "GO analysis"
+author: "Ming Wang"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    highlight: tango
+    toc: yes
+    toc_float:
+      collapsed: no
+    keep_md: true
+  word_document:
+    toc: yes
+  pdf_document:
+    toc: yes
+---
+
+## 1. summary
+
+See GO enrichment analysis in Section `3.1` and `3.2`.
+
+
+## 2. Materials and Methods
+
+**Genes**: here we use `geneList` dataset from [DOSE](https://www.bioconductor.org/packages/DOSE) package.
+
+**Annotation**: Using a Bioconductor package, `org.Hs.eg.db` (version: `3.8.2`)
+
+**Tools**: [clusterProfiler](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3339379/) (R package, `v3.12.0`)
+
+
+> **GO analysis**
+> 
+> GO enrichment analysis was performed with the R package clusterProfiler, with a Bonferroni correction and an adjusted p value of 0.01 and qvalue of 0.05 (Yu et al., 2012).
+> 
+> **Reference**
+> 
+> 1. Yu G, Wang L-G, Han Y, He Q-Y. clusterProfiler: an R package for comparing biological themes among gene clusters. OMICS. 2012;16:284–7. https://doi.org/10.1089/omi.2011.0118.
+
+
+## 3. Results
+
+
+> The geneList contains three features:
+> 
+> numeric vector: fold change or other type of numerical variable
+named vector: every number was named by the corresponding gene ID
+sorted vector: number should be sorted in decreasing order
+> 
+> The dataset `geneList` contains three features: 
+> 
+> 1. numeric vector, foldchange or other type of numerical >variable   
+> 2. named vector, gene ID    
+> 3. sorted vector, sorted by decreasing order  
+
+```{r}
+suppressPackageStartupMessages(library(clusterProfiler))
+suppressPackageStartupMessages(library(org.Hs.eg.db))
+data(geneList, package = "DOSE")
+length(geneList)
+head(geneList)
+```
+
+Convert the `ENTREZID` to `SYMBOL`
+
+genes with **foldchange > 2** were selected for further analysis (n=239).
+
+```{r}
+gene <- names(geneList)[abs(geneList) > 2]
+gene.df <- bitr(gene, fromType = "ENTREZID",
+        toType = c("ENSEMBL", "SYMBOL"),
+        OrgDb = org.Hs.eg.db)
+
+dim(gene.df)
+head(gene.df)
+```
+
+### 3.1 GO analysis
+
+#### 3.1.1 GO classification 
+
+```{r}
+ggo <- groupGO(gene     = gene,
+               OrgDb    = org.Hs.eg.db,
+               ont      = "CC",
+               level    = 3,
+               readable = TRUE)
+
+head(ggo)
+```
+
+
+#### 3.1.2 GO over-representation test
+
+Over-representation test(Boyle et al. 2004) were implemented in clusterProfiler. For calculation details and explanation of paramters, please refer to the vignette of DOSE.
+
+```{r}
+ego <- enrichGO(gene          = gene,
+                universe      = names(geneList),
+                OrgDb         = org.Hs.eg.db,
+                ont           = "BP",
+                pAdjustMethod = "BH",
+                pvalueCutoff  = 0.01,
+                qvalueCutoff  = 0.05,
+                readable      = TRUE)
+
+head(ego)
+```
+
+#### 3.1.3 drop specific GO terms or level
+
+Use the function `dropGO()` function to remove specific GO terms or GO level from results of `enrichGO` and `compareCluster`.
+
+```{r, eval = FALSE}
+dropGO(ego, level = 4)
+dropGO(ego, term = "GO:0140014") # drop the first GO term.
+```
+
+#### 3.1.4 test GO at specific level
+
+Use the function `gofilter` to get results at specific GO level from results of `enrichGO` and `compareCluster`.
+
+example: 
+
+```{r, eval = FALSE}
+gofilter(ego, level = 4)
+
+```
+
+
+#### 3.1.5 reduce redundancy of enriched GO terms
+
+Use the function `simplify()` method to calculate semantic similarity among GO terms and remove highly similar terms. Set the cutooff of similarity `cutoff=0.7` and `by=`, `fun=` to decide which column and method to choose between similar temrs.
+
+example: 
+
+Choose the term with minimum `p.adjust` value within the similar GO terms, with cutoff 0.7.
+
+```{r, eval = FALSE}
+ego3 <- simplify(ego, cutoff = 0.7, by = "p.adjust", select_fun = min)
+```
+
+
+
+### 3.2 Make plots
+
+
+#### 3.2.1 Barplot and dotplot
+
+We could use `barplot()` and `dotplot()` to visualize the results of GO analysis.    
+
+```{r, fig.width=8, fig.width=8}
+barplot(ego, showCategory = 15, order = TRUE)
+dotplot(ego, showCategory = 15)
+```
+
+
+#### 3.2.2 Gene-Concept Network
+
+Show the linkages of genes and biological concepts as a network.
+
+
+```{r}
+p1 <- cnetplot(ego, foldChange = geneList)
+p2 <- cnetplot(ego, foldChange = geneList, categorySize = "pvalue")
+p3 <- cnetplot(ego, foldChange = geneList, circular = TRUE, colorEdge = TRUE)
+
+cowplot::plot_grid(p1, p2, p3, nrow = 1, labels = "AUTO", rel_widths = c(.8, .8, 1.2))
+
+```
+
+
+Or, we can choose custom the labels using `node_label=` parameter.
+
+```{r}
+p1 <- cnetplot(ego, node_label = "category")
+p2 <- cnetplot(ego, node_label = "gene")
+p3 <- cnetplot(ego, node_label = "all")
+p4 <- cnetplot(ego, node_label = "none")
+cowplot::plot_grid(p1, p2, p3, p4, ncol = 2, labels = "AUTO")
+```
+
+#### 3.2.3 Enrichment map
+
+`emapplot()` function: Enrichment map organizes enriched terms into a network with edges connecting overlapping gene sets. In this way, mutually overlapping gene sets are tend to cluster together, making it easy to identify functional module. Support the results from `enrichGO()` and `compareCluster()`.
+
+
+```{r}
+p1 <- emapplot(edo)
+p2 <- emapplot(edo, pie_scale=1.5)
+p3 <- emapplot(edo, layout="kk")
+p4 <- emapplot(edo, pie_scale=1.5, layout="kk") 
+cowplot::plot_grid(p1, p2, p3, p4, ncol=2, labels=LETTERS[1:4])
+```
+
+
+
+```{r}
+data(gcSample)
+xx <- compareCluster(gcSample, fun="enrichKEGG",
+                     organism="hsa", pvalueCutoff=0.05)
+p1 <- emapplot(xx)
+p2 <- emapplot(xx,legend_n=2) 
+p3 <- emapplot(xx,pie="count")
+p4 <- emapplot(xx,pie="count", pie_scale=1.5, layout="kk")
+cowplot::plot_grid(p1, p2, p3, p4, ncol=2, labels=LETTERS[1:4])
+```
+
+
+## 4. Code
+
+Here are the code for regular GO analysis.
+
+```{r, eval = FALSE}
+
+suppressPackageStartupMessages(library(clusterProfiler))
+suppressPackageStartupMessages(library(tidyverse))
+suppressPackageStartupMessages(library(org.Ce.eg.db))
+
+##
+
+## combine three groups
+group_go <- function(gene, orgdb, keytype = "ENTREZID", top = 10) {
+  # 
+  # gene = g_down
+  # orgdb = org.Ce.eg.db
+  # keytype = "ENTREZID" 
+  # group = "BP"
+
+  # BP
+  group <- "BP"
+  ggo1 <- groupGO(gene     = gene,
+                  OrgDb    = orgdb,
+                  keyType  = keytype,
+                  ont      = group,  
+                  level    = 3,
+                  readable = TRUE)
+  
+  # convert to data.frame
+  df1 <- data.frame(ggo1) %>%
+    tidyr::unite("name", c("Description", "ID"), sep = "-", remove = FALSE) %>%
+    dplyr::arrange(desc(Count)) %>%
+    dplyr::mutate(group = group,
+                  des = as.character(Description)) %>%
+    dplyr::select(name, Count, group, des) %>%
+    head(top)
+  
+  # CC
+  group <- "CC"
+  ggo2 <- groupGO(gene     = gene,
+                  OrgDb    = orgdb,
+                  keyType  = keytype,
+                  ont      = group,  
+                  level    = 3,
+                  readable = TRUE)
+  
+  # convert to data.frame
+  df2 <- data.frame(ggo2) %>%
+    tidyr::unite("name", c("Description", "ID"), sep = "-", remove = FALSE) %>%
+    dplyr::arrange(desc(Count)) %>%
+    dplyr::mutate(group = group,
+                  des = as.character(Description)) %>%
+    dplyr::select(name, Count, group, des) %>%
+    head(top)
+  
+  # MF
+  group <- "MF"
+  ggo3 <- groupGO(gene     = gene,
+                  OrgDb    = orgdb,
+                  keyType  = keytype,
+                  ont      = group,  
+                  level    = 3,
+                  readable = TRUE)
+  
+  # convert to data.frame
+  df3 <- data.frame(ggo2) %>%
+    tidyr::unite("name", c("Description", "ID"), sep = "-", remove = FALSE) %>%
+    dplyr::arrange(desc(Count)) %>%
+    dplyr::mutate(group = group,
+                  des = as.character(Description)) %>%
+    dplyr::select(name, Count, group, des) %>%
+    head(top)
+  
+  ## combine 3 plots/data
+  df <- bind_rows(df1, df2, df3) %>%
+    tibble::rowid_to_column("x")
+  
+  # plot
+  ggplotColours <- function(n = 6, h = c(0, 360) + 15){
+    if ((diff(h) %% 360) < 1) h[2] <- h[2] - 360/n
+    hcl(h = (seq(h[1], h[2], length = n)), c = 100, l = 65)
+  }
+  
+  colors <- ggplotColours(n = 3)
+  colors_axis <- rep(colors, each = top)
+  
+  p <- ggplot(df, aes(x, Count, fill = group)) +
+    geom_bar(stat = "identity") + 
+    ggtitle("GO classification") +
+    xlab(NULL) + ylab("Number of genes") +
+    scale_x_continuous(breaks = df$x, labels = df$des) + 
+    scale_fill_manual(values = colors)+
+    theme_bw() +
+    theme(
+      plot.margin = margin(1, 1, 1, 3, "cm"),
+      axis.text.x = element_text(angle = 60, hjust = 1, colour = colors_axis),
+      legend.position = "top"
+    )
+  
+  return(list(p, df))
+}
+
+
+enrich_go <- function(gene, orgdb, 
+                      keytyp = "ENTREZID", 
+                      top = 10, 
+                      method = "BH", 
+                      semsim = TRUE) {
+  ## BP
+  group <- "BP"
+  ego1 <- enrichGO(gene          = gene,
+                   OrgDb         = orgdb,
+                   ont           = group,
+                   pAdjustMethod = method, 
+                   pvalueCutoff  = 0.01,
+                   qvalueCutoff  = 0.05,
+                   readable      = TRUE)
+  
+  if(isTRUE(semsim)) {
+    ego1 <- clusterProfiler::simplify(ego1, cutoff = 0.7, by = "p.adjust", select_fun = min)
+  }
+  
+  df1 <- data.frame(ego1, stringsAsFactors = FALSE) %>%
+    tidyr::unite("name", c("Description", "ID"), sep = "-", remove = FALSE) %>%
+    dplyr::mutate(des = Description,
+                  group = group,
+                  plog10 = -log10(p.adjust),
+                  qlog10 = -log10(qvalue)) %>%
+    dplyr::arrange(p.adjust) %>%
+    dplyr::select(des, name, Count, plog10, qlog10, group) %>%
+    head(top)
+    
+  ## CC
+  group <- "CC"
+  ego2 <- enrichGO(gene          = gene,
+                   OrgDb         = orgdb,
+                   ont           = group,
+                   pAdjustMethod = method, 
+                   pvalueCutoff  = 0.01,
+                   qvalueCutoff  = 0.05,
+                   readable      = TRUE)
+  
+  if(isTRUE(semsim)) {
+    ego2 <- clusterProfiler::simplify(ego2, cutoff = 0.7, by = "p.adjust", select_fun = min)
+  }
+  
+  df2 <- data.frame(ego2, stringsAsFactors = FALSE) %>%
+    tidyr::unite("name", c("Description", "ID"), sep = "-", remove = FALSE) %>%
+    dplyr::mutate(des = Description,
+                  group = group,
+                  group = group,
+                  plog10 = -log10(p.adjust),
+                  qlog10 = -log10(qvalue)) %>%
+    dplyr::arrange(p.adjust) %>%
+    dplyr::select(des, name, Count, plog10, qlog10, group) %>%
+    head(top)  
+
+  ## MF
+  group <- "MF"
+  ego3 <- enrichGO(gene          = gene,
+                   OrgDb         = orgdb,
+                   ont           = group,
+                   pAdjustMethod = method, # bonferroni
+                   pvalueCutoff  = 0.01,
+                   qvalueCutoff  = 0.05,
+                   readable      = TRUE)
+  
+  if(isTRUE(semsim)) {
+    ego3 <- clusterProfiler::simplify(ego3, cutoff = 0.7, by = "p.adjust", select_fun = min)
+  }
+  
+  df3 <- data.frame(ego3, stringsAsFactors = FALSE) %>%
+    tidyr::unite("name", c("Description", "ID"), sep = "-", remove = FALSE) %>%
+    dplyr::mutate(des = Description,
+                  group = group,
+                  plog10 = -log10(p.adjust),
+                  qlog10 = -log10(qvalue)) %>%
+    dplyr::arrange(p.adjust) %>%
+    dplyr::select(des, name, Count, plog10, qlog10, group) %>%
+    head(top)
+  
+  ## combine 3 plots/data
+  df <- bind_rows(df1, df2, df3) %>%
+    tibble::rowid_to_column("x")
+  
+  # plot
+  ggplotColours <- function(n = 6, h = c(0, 360) + 15){
+    if ((diff(h) %% 360) < 1) h[2] <- h[2] - 360/n
+    hcl(h = (seq(h[1], h[2], length = n)), c = 100, l = 65)
+  }
+  
+  colors <- ggplotColours(n = 3)
+  colors_axis <- rep(colors, each = top)
+  
+  p1 <- ggplot(df, aes(x, plog10, fill = group)) +
+    geom_bar(stat = "identity") + 
+    ggtitle("GO Enrichment") +
+    xlab(NULL) + ylab("-log10(P-value)") +
+    scale_x_continuous(breaks = df$x, labels = df$des) + 
+    scale_fill_manual(values = colors)+
+    theme_bw() +
+    theme(
+      plot.margin = margin(1, 1, 1, 3, "cm"),
+      axis.text.x = element_text(angle = 60, hjust = 1, colour = colors_axis),
+      legend.position = "top"
+    )
+  
+  
+  labels=function(x) str_wrap(x, width=text_width)
+  
+  ##
+  p2 <- ggplot(df, aes(x, plog10, fill = group)) +
+    geom_bar(stat = "identity") + 
+    coord_flip() + 
+    ggtitle("GO Enrichment") +
+    xlab(NULL) + ylab("-log10(P-value)") +
+    scale_x_reverse(breaks = df$x, 
+                    labels = function(x) stringr::str_wrap(df$des, 40)) + 
+    # scale_x_continuous(breaks = rev(df$x), labels = rev(df$des)) + 
+    scale_fill_manual(values = colors) +
+    theme_bw() +
+    theme(
+      plot.margin = margin(1, 1, 1, 3, "cm"),
+      axis.text.y = element_text(angle = 0, hjust = 1, colour = colors_axis),
+      legend.position = "right"
+    )
+  
+  ## output
+  pdata <- list(p1, p2, df)
+  ego  <- list(ego1, ego2, ego3)
+  
+  return(list(pdata, ego))
+}
+
+```
+
+
+
+
+
+
+

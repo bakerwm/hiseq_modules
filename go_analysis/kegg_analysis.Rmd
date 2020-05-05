@@ -1,0 +1,180 @@
+---
+title: "KEGG analysis"
+author: "Ming Wang"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    highlight: tango
+    toc: yes
+    toc_float:
+      collapsed: no
+    keep_md: true
+  word_document:
+    toc: yes
+  pdf_document:
+    toc: yes
+---
+
+## 1. summary
+
+KEGG
+
+
+## 2. Materials and Methods
+
+**Genes**: here we use `geneList` dataset from [DOSE](https://www.bioconductor.org/packages/DOSE) package.
+
+**Annotation**: Using a Bioconductor package, `org.Hs.eg.db` (version: `3.8.2`)
+
+**Tools**: [clusterProfiler](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3339379/) (R package, `v3.12.0`)
+
+
+> **Reference**
+> 
+> 1. Yu G, Wang L-G, Han Y, He Q-Y. clusterProfiler: an R package for comparing biological themes among gene clusters. OMICS. 2012;16:284–7. https://doi.org/10.1089/omi.2011.0118.
+
+
+## 3. Results
+
+
+> The geneList contains three features:
+> 
+> numeric vector: fold change or other type of numerical variable
+named vector: every number was named by the corresponding gene ID
+sorted vector: number should be sorted in decreasing order
+> 
+> The dataset `geneList` contains three features: 
+> 
+> 1. numeric vector, foldchange or other type of numerical >variable   
+> 2. named vector, gene ID    
+> 3. sorted vector, sorted by decreasing order  
+
+```{r}
+suppressPackageStartupMessages(library(clusterProfiler))
+suppressPackageStartupMessages(library(org.Hs.eg.db))
+data(geneList, package = "DOSE")
+length(geneList)
+head(geneList)
+```
+
+
+### 3.1 KEGG analysis
+
+
+Retrieve the abbreviation of academic name of the _organism_. the full list of KEGG supported organism can be accessed via: [ http://www.genome.jp/kegg/catalog/org_list.html]( http://www.genome.jp/kegg/catalog/org_list.html). 
+
+[KEGG Ontology, KO](https://www.genome.jp/kegg/ko.html) is supported by specifying `organism = "ko"`. 
+
+
+Alternative, we can search the organisms by `search_kegg_organism()` function.
+
+```{r}
+search_kegg_organism("elegans", by = "scientific_name")
+```
+
+Use the `geneList` dataset from [DOSE]() package for the following analyis.
+
+
+```{r}
+data(geneList, package = "DOSE")
+length(geneList)
+head(geneList)
+```
+
+Convert the `ENTREZID` to `SYMBOL`
+
+genes with **foldchange > 2** were selected (n=239).
+
+```{r}
+gene <- names(geneList)[abs(geneList) > 2]
+gene.df <- bitr(gene, fromType = "ENTREZID",
+        toType = c("ENSEMBL", "SYMBOL"),
+        OrgDb = org.Hs.eg.db)
+
+dim(gene.df)
+head(gene.df)
+```
+
+
+#### 3.1.1 KEGG over-representtation test
+
+
+```{r}
+kk <- enrichKEGG(gene         = gene,
+                 organism     = "hsa",
+                 pvalueCutoff = 0.05)
+head(kk)
+```
+
+
+#### 3.1.2 KEGG Gene Set Enrichment Analysis
+
+```{r}
+kk2 <- gseKEGG(geneList     = geneList,
+               organism     = "hsa",
+               nPerm        = 1000,
+               minGSSize    = 120,
+               pvalueCutoff = 0.05,
+               verbose      = FALSE)
+head(kk2)
+```
+
+
+#### 3.1.3 KEGG Module over-representation test
+
+```{r}
+mkk <- enrichMKEGG(gene     = gene,
+                   organism = "hsa")
+```
+
+
+#### 3.1.4 KEGG Module Gene Set Enrichment Analysis
+
+```{r}
+mkk2 <- gseMKEGG(geneList = geneList,
+                 organism = "hsa")
+```
+
+
+### 3.2 Making plots
+
+
+#### 3.2.1 browseKEGG
+
+
+```{r}
+browseKEGG(kk, "hsa04110")
+```
+
+
+Create pathway views for creating local plots
+
+```{r}
+library(pathview)
+hsa04110 <- pathview(gene.data  = geneList,
+                     pathway.id = "hsa04110",
+                     species    = "hsa",
+                     limit      = list(gene=max(abs(geneList)), cpd=1))
+```
+
+![]("hsa04110.pathview.png")
+
+
+
+## Help 
+
+
+1. Default gene IDs
+
+```{r}
+data(korg)
+head(korg)
+
+```
+
+2. A list of biconductor annotated species 
+
+```{r}
+data(bods)
+head(bods)
+```

@@ -1,0 +1,183 @@
+---
+title: "GO analysis"
+author: "Ming Wang"
+date: "`r Sys.Date()`"
+output:
+  pdf_document:
+    toc: yes
+  word_document:
+    toc: yes
+  html_document:
+    highlight: tango
+    toc: yes
+    toc_float:
+      collapsed: no
+    keep_md: true
+---
+
+## 1. summary
+
+See GO enrichment analysis in Section `3.1` and `3.2`.
+
+
+## 2. Materials and Methods
+
+**Genes**: Two lists of genes, up-regulated (n=345), down-regulated (n=898).
+
+**Organism**: C. elegans 
+
+**Annotation**: Using a Bioconductor package, `org.Ce.eg.db` (version: `3.8.2`)
+
+**Tools**: [clusterProfiler](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3339379/) (R package, `v3.12.0`)
+
+
+### GO analysis
+
+
+GO enrichment analysis was performed with the R package clusterProfiler, with a Bonferroni correction and an adjusted p value of 0.01 and qvalue of 0.05 (Yu et al., 2012).
+
+**Reference**
+
+1. Yu G, Wang L-G, Han Y, He Q-Y. clusterProfiler: an R package for comparing biological themes among gene clusters. OMICS. 2012;16:284–7. https://doi.org/10.1089/omi.2011.0118.
+
+
+## 3. Results
+
+```{r global_options, include = FALSE}
+knitr::opts_chunk$set(
+  fig.width = 12, 
+  fig.height = 8, 
+  fig.path = 'Figures/',
+  echo = FALSE, 
+  warning = FALSE, 
+  message = FALSE)
+```
+
+
+```{r, echo = FALSE}
+suppressPackageStartupMessages(library(clusterProfiler))
+suppressPackageStartupMessages(library(tidyverse))
+suppressPackageStartupMessages(library(org.Ce.eg.db))
+source("go_functions.R")
+
+##
+f <- "../../data/Gene list for GO.xlsx"
+
+## up
+df_up <- readxl::read_xlsx(f, "UP")
+gene1 <- df_up$`Wormbase Identifier`
+
+## down
+df_down <- readxl::read_xlsx(f, "DOWN")
+gene2   <- df_down$`Wormbase Identifier`
+
+## convert genes to ENTREZID
+g1 <- bitr(df_up$`Wormbase Identifier`, "WORMBASE", "ENTREZID", org.Ce.eg.db, drop = TRUE)
+g2 <- bitr(df_down$`Wormbase Identifier`, "WORMBASE", "ENTREZID", org.Ce.eg.db, drop = TRUE)
+
+g_up   <- g1$ENTREZID
+g_down <- g2$ENTREZID
+```
+
+
+### 3.1 Down-regulated genes (n=898) 
+
++ GO classification
+
+Gene classification based on GO distribution at `level=3`. 
+
+```{r, echo = FALSE, fig.width=8, fig.height=6}
+tmp1 <- group_go(g_down, org.Ce.eg.db)
+print(tmp1[[1]]) # plot
+```
+
++ GO enrichment analysis
+
+```{r, echo = FALSE, fig.width=8, fig.height=8}
+tmp2 <- enrich_go(g_down, org.Ce.eg.db, method = "bonferroni")
+plist <- tmp2[[1]]
+dlist <- tmp2[[2]]
+
+# save data
+print(plist[[1]])
+```
+
+Create the barplot like Figure 5D of Merkwirth et al., 2016 Cell.
+
+```{r, echo = FALSE, fig.width=8, fig.height=8}
+print(plist[[2]])
+```
+
+Saving above plots to to file: `results/go_enrich.down.pdf`
+
+```{r, echo = FALSE}
+pdfFile1 <- "results/go_enrich.down.pdf"
+
+pdf(pdfFile1, width = 8, height = 8)
+print(plist[[1]])
+print(plist[[2]])
+dev.off()
+
+```
+
+Save the original enrichment results to file: `results/go_enrich.down.xlsx`
+
+```{r, echo = FALSE}
+if(! dir.exists("results")) dir.create("results")
+xlsxFile <- "results/go_enrich.down.xlsx"
+xlsx::write.xlsx(dlist[[1]], xlsxFile, "BP")
+xlsx::write.xlsx(dlist[[2]], xlsxFile, "CC", append = TRUE)
+xlsx::write.xlsx(dlist[[3]], xlsxFile, "MF", append= TRUE)
+```
+
+### 3.2 Up-regulated genes (n=345) 
+
++ GO classification
+
+```{r, echo = FALSE, fig.width=8, fig.height=6}
+tmp3 <- group_go(g_up, org.Ce.eg.db)
+print(tmp3[[1]]) # plot
+```
+
++ GO enrichment analysis
+
+```{r, echo = FALSE, fig.width=8, fig.height=8}
+tmp4 <- enrich_go(g_down, org.Ce.eg.db, method = "bonferroni")
+plist <- tmp4[[1]]
+dlist <- tmp4[[2]]
+
+# save data
+print(plist[[1]])
+```
+
+Create the barplot like Figure 5D of Merkwirth et al., 2016 Cell.
+
+```{r, echo = FALSE, fig.width=8, fig.height=8}
+print(plist[[2]])
+```
+
+Saving above plots to to file: `results/go_enrich.up.pdf`
+
+```{r, echo = FALSE}
+pdfFile1 <- "results/go_enrich.up.pdf"
+
+pdf(pdfFile1, width = 8, height = 8)
+print(plist[[1]])
+print(plist[[2]])
+dev.off()
+
+```
+
+
+
+Save the original enrichment results to file: `results/go_enrich.up.xlsx`
+
+```{r, echo = FALSE}
+if(! dir.exists("results")) dir.create("results")
+xlsxFile <- "results/go_enrich.up.xlsx"
+xlsx::write.xlsx(dlist[[1]], xlsxFile, "BP")
+xlsx::write.xlsx(dlist[[2]], xlsxFile, "CC", append = TRUE)
+xlsx::write.xlsx(dlist[[3]], xlsxFile, "MF", append= TRUE)
+```
+
+

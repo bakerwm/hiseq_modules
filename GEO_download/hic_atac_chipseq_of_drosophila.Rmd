@@ -1,0 +1,670 @@
+---
+title: "Hi-C, ATAC-seq and ChIP-seq datasets of Drosophila embryos and Kc cells"
+date: "`r Sys.Date()`"
+author:
+- name: Ming Wang
+  email: wangming@ibp.ac.cn
+output:
+  pdf_document:
+    toc: yes
+  word_document:
+    toc: yes
+  html_document:
+    highlight: tango
+    toc: yes
+    toc_float:
+      collapsed: no
+    keep_md: true
+abstract: |
+  Hi-C, ChIP-seq and ATAC-seq datasets for Drosophila embryos, used in Hug et al. (2017) Cell paper.
+  Including 26 datasets, ~ 400 samples.
+---
+
+```{r, echo = F, eval = F}
+# Alternative format
+output:
+  html_document:
+    highlight: tango
+    toc: yes
+    toc_float:
+      collapsed: no
+    keep_md: true
+  word_document:
+    toc: yes
+  pdf_document:
+    toc: yes
+  
+  
+# Bioconductor style
+output:
+  BiocStyle::html_document  
+```
+
+
+```{r knitr_init, echo=FALSE, cache=FALSE}
+library(knitr)
+library(rmdformats)
+
+## Global options
+options(max.print="75")
+opts_chunk$set(echo=FALSE,
+	             cache=TRUE,
+               results="asis",
+               prompt=FALSE,
+               tidy=TRUE,
+               comment=NA,
+               message=FALSE,
+               warning=FALSE)
+opts_knit$set(width=75)
+```
+
+
+```{r}
+# load functions
+library(dplyr)
+library(GEOquery)
+library(SRAdb)
+# source("/data/yulab/wangming/work/hiseq_modules/go_module/scripts/gse_functions.R")
+source("/data/yulab/wangming/work/hiseq_modules/GEO_download/geo_functions.R")
+
+sqlfile <- "/data/biosoft/SRAdb/SRAmetadb.sqlite"
+sra_con <- dbConnect(SQLite(), sqlfile) # close sql at the end of file
+
+if(! dir.exists("results")) dir.create("results")
+
+
+func1 <- function(x) {
+  df <- x %>%
+    dplyr::select(gsm, run, title, study) %>%
+    tibble::rowid_to_column("number")
+  # print(knitr::kable(df2))
+  return(df)
+}
+
+func2 <- function(x) {
+  fname  <- basename(x)
+  url    <- paste0("[", fname, "](", x, ")")
+  df <- data.frame(
+    file = url, 
+    url  = x,
+    stringsAsFactors = FALSE
+  ) %>%
+    tibble::rownames_to_column("GSM") %>%
+    tibble::rowid_to_column("number")
+ # print(knitr::kable(df))
+ return(df)
+}
+
+func3 <- function(x) {
+  df <- read.csv(x)
+  print(knitr::kable(df))
+}
+```
+
+
+## A. Summary
+
+A total of **26** deposited datasets associated with **12** accession numbers, ~**400** samples in [GEO](https://www.ncbi.nlm.nih.gov/geo), [SRA](https://www.ncbi.nlm.nih.gov/sra) and [flybase](http://flybase.org/) databases.
+
+Raw data of the two papers (Blythe and Wieschaus, 2016; Hug et al., 2017) were download for further analysis. (81 samples, and 110 samples.)
+
+**Note**
+
++ "14. Barren ChIP-seq from Kc cells" was **not found** in Li et al. (2015) dataset (GSE62904)
+
++ "ProcessedData", the signal (.bigWig), peak (.bed) files from the submission. 
+
++ "Plots", repeat the plots shown in the papers (Blythe and Wieschaus, 2016, eLife; Hug et al., 2017, Cell)   
+
++ "NA" and blank, data not downloaded, or plots not generated.
+
+
+```{r}
+f <- "results/2017_cell_data.csv"
+func3(f)
+```
+
+
+## B. Details
+
+
+### 1. Hi-C from staged embryos (E-MTAB-4918)
+
++ Accession Number: [ERP016479](https://www.ncbi.nlm.nih.gov/Traces/study/?acc=ERP016479&o=acc_s%3Aa)
+
++ Number of samples: 110
+
++ Library: Hi-C, ChIP-Seq
+
++ Title: Widespread rearrangement of 3D chromatin organization underlies polycomb-mediated stress-induced silencing
+
++ Reference: Hug et al. (2017)
+
+> Hug, C. B., Grimaldi, A. G., Kruse, K. & Vaquerizas, J. M. Chromatin Architecture Emerges during Zygotic Genome Activation Independent of Transcription. Cell 169, 216-228.e19 (2017).
+
+
++ 1.1 Sample information
+
+```{r, eval = T}
+x   <- "ERP016479"
+f1a <- "results/01.Hi-C_from_staged_embryos_E-MTAB-4918.ids.csv"
+f1b <- "results/01.Hi-C_from_staged_embryos_E-MTAB-4918.sup.csv"
+
+if(! file.exists(f1a)) {
+  df <- sraConvert(x, out_type = "sra", sra_con = sra_con)
+  df2 <- df %>%
+    dplyr::select(run, sample, study) %>%
+    tibble::rowid_to_column("number")
+  
+  # save to file
+  write.csv(df2, file = f1a, row.names = FALSE)
+}
+
+func3(f1a)
+```
+
+
+### 2. Hi-C from Kc cells (GSE63515)
+
++ Accession Number: GEO: [GSE63515](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE63515)
+
++ Number of samples: 17
+
++ Library: Hi-C
+
++ Title: Widespread rearrangement of 3D chromatin organization underlies polycomb-mediated stress-induced silencing
+
++ Reference: Li et al. (2015)
+
+> Li, L., Lyu, X., Hou, C., Takenaka, N., Nguyen, H.Q., Ong, C.-T., Cuben˜ asPotts, C., Hu, M., Lei, E.P., Bosco, G., et al. (2015). Widespread rearrangement of 3D chromatin organization underlies polycomb-mediated stress-induced silencing. Mol. Cell 58, 216–231.
+
+
++ 2.1 Sample information
+
+```{r, eval = T}
+x  <- "GSE63515"
+fa <- "results/02.Hi-C_from_Kc_cells_GSE63515.ids.csv"
+fb <- "results/02.Hi-C_from_Kc_cells_GSE63515.sup.csv"
+
+if(! file.exists(fa)) {
+  table_list <- geo_port(x, sup = FALSE, recursive = TRUE)
+  df <- func1(table_list[[1]])
+  write.csv(df, file = fa, row.names = FALSE)
+}
+
+if(! file.exists(fb)) {
+  sup_list <- geo_port(x, sup = TRUE, recursive = TRUE)
+  df <- func2(sup_list[[1]])
+  write.csv(df, file = fb, row.names = FALSE)
+}
+
+func3(fa)
+```
+
++ 2.2 Supplementary files
+
+```{r, eval = T}
+func3(fb)
+```
+
+### 3. Hi-C from 16-18hpf embryos (GSE34453)
+
++ Accession Number: GEO: [GSE34453](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE34453)  
+
++ Number of samples: 2
+
++ Library: Hi-C
+
++ Title: Three-dimensional folding and functional organization principles of the Drosophila genome
+
++ Reference: Sexton et al. (2012)
+
+> Sexton, T., Yaffe, E., Kenigsberg, E., Bantignies, F., Leblanc, B., Hoichman, M., Parrinello, H., Tanay, A., and Cavalli, G. (2012). Three-dimensional folding and functional organization principles of the Drosophila genome. Cell 148, 458–472.
+
+
++ 3.1 Sample information
+
+```{r, eval = T}
+x  <- "GSE34453"
+fa <- "results/03.Hi-C_from_16-18hpf_embryos_GSE34453.ids.csv"
+fb <- "results/03.Hi-C_from_16-18hpf_embryos_GSE34453.sup.csv"
+
+if(! file.exists(fa)) {
+  table_list <- geo_port(x, sup = FALSE, recursive = TRUE)
+  df <- func1(table_list[[1]])
+  write.csv(df, file = fa, row.names = FALSE)
+}
+
+if(! file.exists(fb)) {
+  sup_list <- geo_port(x, sup = TRUE, recursive = TRUE)
+  df <- func2(sup_list[[1]])
+  write.csv(df, file = fb, row.names = FALSE)
+}
+
+func3(fa)
+```
+
++ 3.2 Supplementary files
+
+```{r, eval = T}
+func3(fb)
+```
+
+### 4. RNA Pol II ChIP-seq reads from injected staged embryos (E-MTAB-4918)
+
+Details: **see section 1.**
+
+### 5. RNA Pol II ChIP-seq from staged embryos (GSE62925)
+
++ Accession Number: GEO: [GSE62925](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE62925)  
+
++ Number of samples: 17
+
++ Library: ChIP-seq
+
++ Title: Zygotic genome activation triggers the DNA replication checkpoint at the midblastula transition
+
++ Reference: Blythe and Wieschaus (2015)
+
+> Blythe, S.A., and Wieschaus, E.F. (2015). Zygotic genome activation triggers the DNA replication checkpoint at the midblastula transition. Cell 160, 1169–1181.
+
+
++ 5.1 Sample information
+
+```{r, eval = T}
+x  <- "GSE62925"
+fa <- "results/05.RNA_Pol_II_ChIP-seq_from_staged_embryos_GSE62925.ids.csv"
+fb <- "results/05.RNA_Pol_II_ChIP-seq_from_staged_embryos_GSE62925.sup.csv"
+
+if(! file.exists(fa)) {
+  table_list <- geo_port(x, sup = FALSE, recursive = TRUE)
+  df <- func1(table_list[[1]])
+  write.csv(df, file = fa, row.names = FALSE)
+}
+
+if(! file.exists(fb)) {
+  sup_list <- geo_port(x, sup = TRUE, recursive = TRUE)
+  df <- func2(sup_list[[1]])
+  write.csv(df, file = fb, row.names = FALSE)
+}
+
+func3(fa)
+```
+
++ 5.2 Supplementary files
+
+```{r, eval = T}
+func3(fb)
+```
+
+### 6. Histone ChIP-seq from staged embryos (GSE58935)
+
++ Accession Number: GEO: [GSE58935](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE58935)  
+
++ Number of samples: 51
+
++ Library: ChIP-seq
+
++ Title: Establishment of regions of genomic activity during the Drosophila maternal to zygotic transition
+
++ Reference: Li et al. (2014)
+
+> Li, X.-Y., Harrison, M.M., Villalta, J.E., Kaplan, T., and Eisen, M.B. (2014). Establishment of regions of genomic activity during the Drosophila maternal to zygotic transition. eLife 3, 3.
+
++ 6.1 Sample information
+
+```{r, eval = T}
+x  <- "GSE58935"
+fa <- "results/06.Histone_ChIP-seq_from_staged_embryos_GSE58935.ids.csv"
+fb <- "results/06.Histone_ChIP-seq_from_staged_embryos_GSE58935.sup.csv"
+
+if(! file.exists(fa)) {
+  table_list <- geo_port(x, sup = FALSE, recursive = TRUE)
+  df <- func1(table_list[[1]])
+  write.csv(df, file = fa, row.names = FALSE)
+}
+
+if(! file.exists(fb)) {
+  sup_list <- geo_port(x, sup = TRUE, recursive = TRUE)
+  df <- func2(sup_list[[1]])
+  write.csv(df, file = fb, row.names = FALSE)
+}
+
+func3(fa)
+```
+
++ 6.2 Supplementary files
+
+```{r, eval = T}
+func3(fb)
+```
+
+### 7. Zld ChIP-seq from 2-3hpf embryos (GSE65441)
+
++ Accession Number: GEO: [GSE65441](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE65441)  
+
++ Number of samples: 32
+
++ Library: ChIP-seq
+
++ Title: Zelda overcomes the high intrinsic nucleosome barrier at enhancers during Drosophila zygotic genome activation
+
++ Reference: Sun et al. (2015)
+
+> Sun, Y., Nien, C.-Y., Chen, K., Liu, H.-Y., Johnston, J., Zeitlinger, J., and Rushlow, C. (2015). Zelda overcomes the high intrinsic nucleosome barrier at enhancers during Drosophila zygotic genome activation. Genome Res. 25, 1703–1714.
+
++ 7.1 Sample information
+
+```{r, eval = T}
+x  <- "GSE65441"
+fa <- "results/07.Zld_ChIP-seq_from_2-3hpf_embryos_GSE65441.ids.csv"
+fb <- "results/07.Zld_ChIP-seq_from_2-3hpf_embryos_GSE65441.sup.csv"
+
+if(! file.exists(fa)) {
+  table_list <- geo_port(x, sup = FALSE, recursive = TRUE)
+  df <- func1(table_list[[1]])
+  write.csv(df, file = fa, row.names = FALSE)
+}
+
+if(! file.exists(fb)) {
+  sup_list <- geo_port(x, sup = TRUE, recursive = TRUE)
+  df <- func2(sup_list[[1]])
+  write.csv(df, file = fb, row.names = FALSE)
+}
+
+func3(fa)
+```
+
++ 7.2 Supplementary files
+
+```{r, eval = T}
+func3(fb)
+```
+
+### 8. Zld ChIP-seq from staged embryos (GSE30757)
+
++ Accession Number: GEO: [GSE30757](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE30757)  
+
++ Number of samples: 3
+
++ Library: ChIP-seq
+
++ Title: Zelda binding in the early Drosophila melanogaster embryo marks regions subsequently activated at the maternal-to-zygotic transition
+
++ Reference: Harrison et al. (2011)
+
+> Harrison, M.M., Li, X.-Y., Kaplan, T., Botchan, M.R., and Eisen, M.B. (2011). Zelda binding in the early Drosophila melanogaster embryo marks regions subsequently activated at the maternal-to-zygotic transition. PLoS Genet. 7, e1002266.
+
++ 8.1 Sample information
+
+```{r, eval = T}
+x  <- "GSE30757"
+fa <- "results/08.Zld_ChIP-seq_from_staged_embryos_GSE30757.ids.csv"
+fb <- "results/08.Zld_ChIP-seq_from_staged_embryos_GSE30757.sup.csv"
+
+if(! file.exists(fa)) {
+  table_list <- geo_port(x, sup = FALSE, recursive = TRUE)
+  df <- func1(table_list[[1]])
+  write.csv(df, file = fa, row.names = FALSE)
+}
+
+if(! file.exists(fb)) {
+  sup_list <- geo_port(x, sup = TRUE, recursive = TRUE)
+  df <- func2(sup_list[[1]])
+  write.csv(df, file = fb, row.names = FALSE)
+}
+
+func3(fa)
+```
+
++ 8.2 Supplementary files
+
+```{r, eval = T}
+func3(fb)
+```
+
+### 9. ATAC-seq from staged embryos (GSE83851)
+
++ Accession Number: GEO: [GSE83851](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE83851)  
+
++ Number of samples: 81
+
++ Library: ATAC-seq
+
++ Title: Establishment and maintenance of heritable chromatin structure during early Drosophila embryogenesis
+
++ Reference: Blythe and Wieschaus (2016)
+
+> Blythe, S.A., and Wieschaus, E.F. (2016). Establishment and maintenance of heritable chromatin structure during early Drosophila embryogenesis. eLife 5, 5.
+
+
++ 9.1 Sample information
+
+```{r, eval = T}
+x  <- "GSE83851"
+fa <- "results/09.ATAC-seq_from_staged_embryos_GSE83851.ids.csv"
+fb <- "results/09.ATAC-seq_from_staged_embryos_GSE83851.sup.csv"
+
+if(! file.exists(fa)) {
+  table_list <- geo_port(x, sup = FALSE, recursive = TRUE)
+  df <- func1(table_list[[1]])
+  write.csv(df, file = fa, row.names = FALSE)
+}
+
+if(! file.exists(fb)) {
+  sup_list <- geo_port(x, sup = TRUE, recursive = TRUE)
+  df <- func2(sup_list[[1]])
+  write.csv(df, file = fb, row.names = FALSE)
+}
+
+func3(fa)
+```
+
++ 9.2 Supplementary files
+
+```{r, eval = T}
+func3(fb)
+```
+
+### 10. BEAF ChIP-seq from Kc cells (GSE62904)
+
++ Accession Number: GEO: [GSE62904](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE62904)  
+
++ Number of samples: 61
+
++ Library: ChIP-seq
+
++ Title: Widespread rearrangement of 3D chromatin organization underlies polycomb-mediated stress-induced silencing
+
++ Reference: Li et al. (2015)
+
+> Li, L., Lyu, X., Hou, C., Takenaka, N., Nguyen, H.Q., Ong, C.-T., Cuben˜ as Potts, C., Hu, M., Lei, E.P., Bosco, G., et al. (2015). Widespread rearrangement of 3D chromatin organization underlies polycomb-mediated stress-induced silencing. Mol. Cell 58, 216–231.
+
++ 10.1 Sample information
+
+```{r, eval = T}
+x  <- "GSE62904"
+fa <- "results/10.BEAF_ChIP-seq_from_Kc_cells_GSE62904.ids.csv"
+fb <- "results/10.BEAF_ChIP-seq_from_Kc_cells_GSE62904.sup.csv"
+
+if(! file.exists(fa)) {
+  table_list <- geo_port(x, sup = FALSE, recursive = TRUE)
+  df <- func1(table_list[[1]])
+  write.csv(df, file = fa, row.names = FALSE)
+}
+
+if(! file.exists(fb)) {
+  sup_list <- geo_port(x, sup = TRUE, recursive = TRUE)
+  df <- func2(sup_list[[1]])
+  write.csv(df, file = fb, row.names = FALSE)
+}
+
+func3(fa)
+```
+
++ 10.2 Supplementary files
+
+```{r, eval = T}
+func3(fb)
+```
+
+### 11. CapH2 ChIP-seq from Kc cells (GSE54529)
+
++ Accession Number: GEO: [GSE54529](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE54529)  
+
++ Number of samples: 16
+
++ Library: ChIP-seq
+
++ Title: Insulator function and topological domain border strength scale with architectural protein occupancy
+
++ Reference: Van Bortle et al. (2014)
+
+> Van Bortle, K., Nichols, M.H., Li, L., Ong, C.-T., Takenaka, N., Qin, Z.S., and Corces, V.G. (2014). Insulator function and topological domain border strength scale with architectural protein occupancy. Genome Biol. 15, R82.
+
++ 11.1 Sample information
+
+```{r, eval = T}
+x  <- "GSE54529"
+fa <- "results/11.CapH2_ChIP-seq_from_Kc_cells_GSE54529.ids.csv"
+fb <- "results/11.CapH2_ChIP-seq_from_Kc_cells_GSE54529.sup.csv"
+
+if(! file.exists(fa)) {
+  table_list <- geo_port(x, sup = FALSE, recursive = TRUE)
+  df <- func1(table_list[[1]])
+  write.csv(df, file = fa, row.names = FALSE)
+}
+
+if(! file.exists(fb)) {
+  sup_list <- geo_port(x, sup = TRUE, recursive = TRUE)
+  df <- func2(sup_list[[1]])
+  write.csv(df, file = fb, row.names = FALSE)
+}
+
+func3(fa)
+```
+
++ 11.2 Supplementary files
+
+```{r, eval = T}
+func3(fb)
+```
+
+
+### 12. CBP ChIP-seq from Kc cells (GSE62904)
+
+Details: see **section 10.**
+
+
+### 13. Chromator ChIP-seq from Kc cells (GSE62904)
+
+Details: see **section 10.**
+
+
+### 14. Barren ChIP-seq from Kc cells (GSE62904)
+
+Details: see **section 10.**
+
+
+### 15. CP190 ChIP-seq from Kc cells (GSE62904)
+
+Details: see **section 10.**
+
+
+### 16. CTCF ChIP-seq from Kc cells (GSE54529)
+
+Details: see **section 11**
+
+
+### 17. DREF ChIP-seq from Kc cells (GSE62904)
+
+Details: see **section 10.**
+
+
+### 18. GAF ChIP-seq from Kc cells (GSE54529)
+
+Details: see **section 11.**
+
+
+### 19. IIC220 ChIP-seq from Kc cells (GSE54529)
+
+Details: see **section 11.**
+
+
+### 20. L3mbt ChIP-seq from Kc cells (GSE62904)
+
+Details: see **section 10.**
+
+
+### 21. Modmdg4 ChIP-seq from Kc cells (GSE62904)
+
+Details: see **section 10.**
+
+
+### 22. Rad21 ChIP-seq from Kc cells (GSE62904)
+
+Details: see **section 10.**
+
+
+### 23. Su(Hw) ChIP-seq from Kc cells (GSE30740)
+
++ Accession Number: GEO: [GSE30740](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE30740)  
+
++ Number of samples: 14
+
++ Library: ChIP-seq
+
++ Title: Regulation of chromatin organization and inducible gene expression by a Drosophila insulator
+
++ Reference: Wood et al. (2011)
+
+> Wood, A.M., Van Bortle, K., Ramos, E., Takenaka, N., Rohrbaugh, M., Jones, B.C., Jones, K.C., and Corces, V.G. (2011). Regulation of chromatin organization and inducible gene expression by a Drosophila insulator. Mol. Cell 44, 29–38.
+
++ 23.1 Sample information
+
+```{r, eval = T}
+x  <- "GSE30740"
+fa <- "results/23.SuHw_ChIP-seq_from_Kc_cells_GSE30740.ids.csv"
+fb <- "results/23.SuHw_ChIP-seq_from_Kc_cells_GSE30740.sup.csv"
+
+if(! file.exists(fa)) {
+  table_list <- geo_port(x, sup = FALSE, recursive = TRUE)
+  df <- func1(table_list[[1]])
+  write.csv(df, file = fa, row.names = FALSE)
+}
+
+if(! file.exists(fb)) {
+  sup_list <- geo_port(x, sup = TRUE, recursive = TRUE)
+  df <- func2(sup_list[[1]])
+  write.csv(df, file = fb, row.names = FALSE)
+}
+
+func3(fa)
+```
+
++ 23.2 Supplementary files
+
+```{r, eval = T}
+func3(fb)
+```
+
+### 24. TFIIIC ChIP-seq from Kc cells (GSE62904)
+
+Details: see **section 10.**
+
+
+### 25. Z4 ChIP-seq from Kc cells (GSE62904)
+
+Details: see **section 10.**
+
+
+### 26. FlyBase RNA-seq profile 
+
+See [flybase](http://flybase.org/static_pages/rna-seq/rna-seq_profile_search.html) or [modENCODE](http://www.modencode.org/)
+
+url: http://flybase.org/static_pages/rna-seq/rna-seq_profile_search.html
+
+
+```{r}
+RSQLite::dbDisconnect(sra_con) # close
+```

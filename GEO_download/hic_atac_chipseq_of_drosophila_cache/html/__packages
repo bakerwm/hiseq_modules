@@ -1,0 +1,12 @@
+base
+knitr
+rmdformats
+dplyr
+BiocGenerics
+Biobase
+GEOquery
+RSQLite
+graph
+bitops
+RCurl
+SRAdb

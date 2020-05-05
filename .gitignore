@@ -1,0 +1,12 @@
+RNA_accessibility/ViennaRNA-2.4.14
+RNA_accessibility/src
+RNA_accessibility/src/CHOPCHOP
+RNA_accessibility/src/CRISPR-RT
+RNA_accessibility/src/RNAsnap-standalone
+fastq_tools/FastqCount
+fastq_tools/fastq-tools
+fastq_tools/seqkit
+fastq_tools/seqmagick
+fastq_tools/seqtk
+fastq_tools/TrimGalore
+

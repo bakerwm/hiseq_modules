@@ -1,0 +1,4 @@
+motif_id	motif_alt_id	sequence_name	start	stop	strand	score	p-value	q-value	matched_sequence
+MA0531.1	CTCF	FBgn0001167_gypsy	2376	2390	+	9.72414	9.53e-05		TTTTTAGGGGGCGCT
+MA0531.1	CTCF	FBgn0001167_gypsy	4178	4192	-	11.5345	3.9e-05		CCTAGAGAGGGCGTC
+MA0531.1	CTCF	FBgn0001167_gypsy	6332	6346	-	9.98276	8.44e-05		GCGCAAGATGGTGTG
